@@ -35,6 +35,7 @@ Include in the diagram:
 - Show the size (in bytes) and structure of a Node that allocated six bytes of data.
 - Include the bytes pointer, and indicate using an arrow which byte in the allocated memory it points to.
 
+```text
 head ─┐
       v
    ┌───────────────────────────────┐        ┌───────────────────────────────┐
@@ -49,6 +50,8 @@ head ─┐
          (≈24 bytes for Node)                       (≈24 bytes for Node)
 
 tail ──────────────────────────────────────────────────────────────┘
+```
+
 
 ( chat gpt helped me make the graph nice )
 ---
