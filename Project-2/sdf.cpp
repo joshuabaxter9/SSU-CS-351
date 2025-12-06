@@ -1,8 +1,8 @@
-
 #include <barrier>
 #include <cmath>
 #include <format>
 #include <iostream>
+#include <numeric>
 #include <random>
 #include <thread>
 #include <vector>
@@ -25,7 +25,6 @@
 //   volume of the cube with the sphere removed, we're interested to know if
 //   the point is inside or outside of the sphere.
 //
-
 bool sdf(vec3 p) {
     // Create a sphere centered inside of our cube
     static const Sphere sphere(vec3(0.5), 0.5);
@@ -41,7 +40,6 @@ bool sdf(vec3 p) {
 //
 // --- main ---
 //
-
 int main(int argc, char* argv[]) {
     //
     // Specify the program's default options:
@@ -76,8 +74,8 @@ int main(int argc, char* argv[]) {
                     "    -n <value>   total number of sample points (default :%u)\n"
                     "    -t <value>   use <values> number of threads (default: %u)\n";
 
-                    fprintf(stderr, help, argv[0], partitions, numSamples, numThreads);
-                    exit(EXIT_SUCCESS);
+                fprintf(stderr, help, argv[0], partitions, numSamples, numThreads);
+                exit(EXIT_SUCCESS);
             } break;
 
             case 'p':
@@ -136,7 +134,7 @@ int main(int argc, char* argv[]) {
     //      closing brace :-)   
     //
     for (size_t id = 0; id < threads.size(); ++id) {
-        threads[id] = std::jthread{ []() {
+        threads[id] = std::jthread{ [&, id]() {
 
             // C++ 11's random number generation system.  These functions
             //   will generate uniformly distributed unsigned integers in
@@ -144,19 +142,27 @@ int main(int argc, char* argv[]) {
             //   helper function rand() (implemented as a lambda)
             std::random_device device;
             std::mt19937 generator(device());
-            std::uniform_int_distribution<unsigned int> uniform(0.0, partitions);
+            std::uniform_int_distribution<unsigned int> uniform(0, partitions - 1);
 
-
-                // Define a helper function to generate random floating-point
-                //   values in the range [0.0, 1.0]
-                auto rand = [&,partitions]() {
-                    return static_cast<double>(uniform(generator)) / partitions;
-                };
+            // Define a helper function to generate random floating-point
+            //   values in the range [0.0, 1.0]
+            auto rand = [&, partitions]() {
+                return static_cast<double>(uniform(generator)) / partitions;
+            };
             
-                // Generate points inside the volume cube.  First, create uniformly
-                //   distributed points in the range [0.0, 1.0] for each dimension.
-                vec3 p(rand(), rand(), rand());
+            size_t begin = id * chunkSize;
+            size_t end   = std::min(begin + chunkSize, numSamples);
 
+            size_t localCount = 0;
+
+            for (size_t i = begin; i < end; ++i) {
+                vec3 p(rand(), rand(), rand());
+                if (sdf(p)) {
+                    ++localCount;
+                }
+            }
+
+            insidePoints[id] = localCount;
 
             barrier.arrive_and_wait();
         }};
@@ -168,6 +174,10 @@ int main(int argc, char* argv[]) {
     //
     // (Look in threaded.cpp for hints)
 
+    threads.back().join();
+
+    size_t volumePoints = std::accumulate(
+        insidePoints.begin(), insidePoints.end(), size_t{0});
+
     std::cout << static_cast<double>(volumePoints) / numSamples << "\n";
 }
-
